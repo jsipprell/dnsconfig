@@ -9,9 +9,11 @@
 package dnsconfig
 
 import (
-	"net"
-
-	"github.com/guilhem/netparse"
+	"bufio"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
 )
 
 type DnsConfig struct {
@@ -27,85 +29,110 @@ type DnsConfig struct {
 // TODO(rsc): Supposed to call uname() and chop the beginning
 // of the host name to get the default search domain.
 func DnsReadConfig(filename string) (*DnsConfig, error) {
-	file, err := netparse.Open(filename)
+	file, err := os.Open(filename)
 	if err != nil {
-		return nil, &net.DNSConfigError{err}
+		return nil, err
 	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+
 	conf := new(DnsConfig)
-	conf.servers = make([]string, 0, 3) // small, but the standard limit
-	conf.search = make([]string, 0)
-	conf.ndots = 1
-	conf.timeout = 5
-	conf.attempts = 2
-	conf.rotate = false
-	for line, ok := file.ReadLine(); ok; line, ok = file.ReadLine() {
-		f := netparse.GetFields(line)
-		if len(f) < 1 {
+	// conf.servers = make([]string, 0, 3) // small, but the standard limit
+	// conf.search = make([]string, 0)
+	// conf.ndots = 1
+	// conf.timeout = 5
+	// conf.attempts = 2
+	// conf.rotate = false
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		scannerLine := bufio.NewScanner(strings.NewReader(line))
+		scannerLine.Split(bufio.ScanWords)
+		var lineArr []string
+		for scannerLine.Scan() {
+			lineArr = append(lineArr, scannerLine.Text())
+		}
+
+		//empty line
+		if len(lineArr) == 0 {
 			continue
 		}
-		switch f[0] {
+		switch lineArr[0] {
 		case "nameserver": // add one name server
-			a := conf.servers
-			n := len(a)
-			if len(f) > 1 && n < cap(a) {
-				// One more check: make sure server name is
-				// just an IP address.  Otherwise we need DNS
-				// to look it up.
-				name := f[1]
-				switch len(net.ParseIP(name)) {
-				case 16:
-					name = "[" + name + "]"
-					fallthrough
-				case 4:
-					a = a[0 : n+1]
-					a[n] = name
-					conf.servers = a
-				}
+			if len(lineArr) > 1 {
+				conf.servers = append(conf.servers, lineArr[1])
 			}
 
 		case "domain": // set search path to just this domain
-			if len(f) > 1 {
+			if len(lineArr) > 1 {
 				conf.search = make([]string, 1)
-				conf.search[0] = f[1]
+				conf.search[0] = lineArr[1]
 			} else {
 				conf.search = make([]string, 0)
 			}
 
 		case "search": // set search path to given servers
-			conf.search = make([]string, len(f)-1)
+			conf.search = make([]string, len(lineArr)-1)
 			for i := 0; i < len(conf.search); i++ {
-				conf.search[i] = f[i+1]
+				conf.search[i] = lineArr[i+1]
 			}
 
 		case "options": // magic options
-			for i := 1; i < len(f); i++ {
-				s := f[i]
+			for i := 1; i < len(lineArr); i++ {
+				s := lineArr[i]
 				switch {
-				case len(s) >= 6 && s[0:6] == "ndots:":
-					n, _, _ := netparse.Dtoi(s, 6)
-					if n < 1 {
-						n = 1
-					}
-					conf.ndots = n
-				case len(s) >= 8 && s[0:8] == "timeout:":
-					n, _, _ := netparse.Dtoi(s, 8)
-					if n < 1 {
-						n = 1
-					}
-					conf.timeout = n
-				case len(s) >= 8 && s[0:9] == "attempts:":
-					n, _, _ := netparse.Dtoi(s, 9)
-					if n < 1 {
-						n = 1
-					}
-					conf.attempts = n
+				case strings.HasPrefix(s, "ndots:"):
+					v := strings.TrimPrefix(s, "ndots:")
+					conf.ndots, _ = strconv.Atoi(v)
+				case strings.HasPrefix(s, "timeout:"):
+					v := strings.TrimPrefix(s, "timeout:")
+					conf.timeout, _ = strconv.Atoi(v)
+				case strings.HasPrefix(s, "attempts:"):
+					v := strings.TrimPrefix(s, "attempts:")
+					conf.attempts, _ = strconv.Atoi(v)
 				case s == "rotate":
 					conf.rotate = true
 				}
 			}
 		}
 	}
-	file.Close()
-
 	return conf, nil
+}
+
+func DnsWriteConfig(conf *DnsConfig, filename string) (err error) {
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	w := bufio.NewWriter(file)
+
+	for _, server := range conf.servers {
+		line := "nameserver " + server
+		fmt.Fprintln(w, line)
+	}
+	for _, s := range conf.search {
+		line := "search " + s
+		fmt.Fprintln(w, line)
+	}
+	if conf.ndots != 0 || conf.timeout != 0 || conf.attempts != 0 || conf.rotate != false {
+		line := "options"
+		if conf.ndots != 0 {
+			line += " ndots:" + strconv.Itoa(conf.ndots)
+		}
+		if conf.timeout != 0 {
+			line += " timeout:" + strconv.Itoa(conf.timeout)
+		}
+		if conf.attempts != 0 {
+			line += " attempts:" + strconv.Itoa(conf.attempts)
+		}
+		if conf.rotate == true {
+			line += " rotate"
+		}
+		fmt.Fprintln(w, line)
+	}
+	w.Flush()
+
+	return
 }
