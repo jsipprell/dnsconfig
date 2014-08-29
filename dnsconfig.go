@@ -17,12 +17,12 @@ import (
 )
 
 type DnsConfig struct {
-	Servers  []string // servers to use
-	Search   []string // suffixes to append to local name
-	Ndots    int      // number of dots in name to trigger absolute lookup
-	Timeout  int      // seconds before giving up on packet
-	Attempts int      // lost packets before giving up on server
-	Rotate   bool     // round robin among servers
+	Servers  []string `json:"servers"` // servers to use
+	Search   []string `json:"search"`  // suffixes to append to local name
+	Ndots    int      `json:"ndots"`   // number of dots in name to trigger absolute lookup
+	Timeout  int      `json:"timeout"` // seconds before giving up on packet
+	Attempts int      `json:"attemps"` // lost packets before giving up on server
+	Rotate   bool     `json:"rotate"`  // round robin among servers
 }
 
 func DnsReadConfig(filename string) (*DnsConfig, error) {
