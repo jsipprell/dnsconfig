@@ -16,6 +16,8 @@ import (
 	"strings"
 )
 
+const ResolvPath = "/etc/resolv.conf"
+
 type DnsConfig struct {
 	Servers  []string `json:"servers"` // servers to use
 	Search   []string `json:"search"`  // suffixes to append to local name
