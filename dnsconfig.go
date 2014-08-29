@@ -17,17 +17,14 @@ import (
 )
 
 type DnsConfig struct {
-	servers  []string // servers to use
-	search   []string // suffixes to append to local name
-	ndots    int      // number of dots in name to trigger absolute lookup
-	timeout  int      // seconds before giving up on packet
-	attempts int      // lost packets before giving up on server
-	rotate   bool     // round robin among servers
+	Servers  []string // servers to use
+	Search   []string // suffixes to append to local name
+	Ndots    int      // number of dots in name to trigger absolute lookup
+	Timeout  int      // seconds before giving up on packet
+	Attempts int      // lost packets before giving up on server
+	Rotate   bool     // round robin among servers
 }
 
-// See resolv.conf(5) on a Linux machine.
-// TODO(rsc): Supposed to call uname() and chop the beginning
-// of the host name to get the default search domain.
 func DnsReadConfig(filename string) (*DnsConfig, error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -37,12 +34,6 @@ func DnsReadConfig(filename string) (*DnsConfig, error) {
 	scanner := bufio.NewScanner(file)
 
 	conf := new(DnsConfig)
-	// conf.servers = make([]string, 0, 3) // small, but the standard limit
-	// conf.search = make([]string, 0)
-	// conf.ndots = 1
-	// conf.timeout = 5
-	// conf.attempts = 2
-	// conf.rotate = false
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -60,21 +51,21 @@ func DnsReadConfig(filename string) (*DnsConfig, error) {
 		switch lineArr[0] {
 		case "nameserver": // add one name server
 			if len(lineArr) > 1 {
-				conf.servers = append(conf.servers, lineArr[1])
+				conf.Servers = append(conf.Servers, lineArr[1])
 			}
 
 		case "domain": // set search path to just this domain
 			if len(lineArr) > 1 {
-				conf.search = make([]string, 1)
-				conf.search[0] = lineArr[1]
+				conf.Search = make([]string, 1)
+				conf.Search[0] = lineArr[1]
 			} else {
-				conf.search = make([]string, 0)
+				conf.Search = make([]string, 0)
 			}
 
 		case "search": // set search path to given servers
-			conf.search = make([]string, len(lineArr)-1)
-			for i := 0; i < len(conf.search); i++ {
-				conf.search[i] = lineArr[i+1]
+			conf.Search = make([]string, len(lineArr)-1)
+			for i := 0; i < len(conf.Search); i++ {
+				conf.Search[i] = lineArr[i+1]
 			}
 
 		case "options": // magic options
@@ -83,15 +74,15 @@ func DnsReadConfig(filename string) (*DnsConfig, error) {
 				switch {
 				case strings.HasPrefix(s, "ndots:"):
 					v := strings.TrimPrefix(s, "ndots:")
-					conf.ndots, _ = strconv.Atoi(v)
+					conf.Ndots, _ = strconv.Atoi(v)
 				case strings.HasPrefix(s, "timeout:"):
 					v := strings.TrimPrefix(s, "timeout:")
-					conf.timeout, _ = strconv.Atoi(v)
+					conf.Timeout, _ = strconv.Atoi(v)
 				case strings.HasPrefix(s, "attempts:"):
 					v := strings.TrimPrefix(s, "attempts:")
-					conf.attempts, _ = strconv.Atoi(v)
+					conf.Attempts, _ = strconv.Atoi(v)
 				case s == "rotate":
-					conf.rotate = true
+					conf.Rotate = true
 				}
 			}
 		}
@@ -108,26 +99,26 @@ func DnsWriteConfig(conf *DnsConfig, filename string) (err error) {
 
 	w := bufio.NewWriter(file)
 
-	for _, server := range conf.servers {
+	for _, server := range conf.Servers {
 		line := "nameserver " + server
 		fmt.Fprintln(w, line)
 	}
-	for _, s := range conf.search {
+	for _, s := range conf.Search {
 		line := "search " + s
 		fmt.Fprintln(w, line)
 	}
-	if conf.ndots != 0 || conf.timeout != 0 || conf.attempts != 0 || conf.rotate != false {
+	if conf.Ndots != 0 || conf.Timeout != 0 || conf.Attempts != 0 || conf.Rotate != false {
 		line := "options"
-		if conf.ndots != 0 {
-			line += " ndots:" + strconv.Itoa(conf.ndots)
+		if conf.Ndots != 0 {
+			line += " ndots:" + strconv.Itoa(conf.Ndots)
 		}
-		if conf.timeout != 0 {
-			line += " timeout:" + strconv.Itoa(conf.timeout)
+		if conf.Timeout != 0 {
+			line += " timeout:" + strconv.Itoa(conf.Timeout)
 		}
-		if conf.attempts != 0 {
-			line += " attempts:" + strconv.Itoa(conf.attempts)
+		if conf.Attempts != 0 {
+			line += " attempts:" + strconv.Itoa(conf.Attempts)
 		}
-		if conf.rotate == true {
+		if conf.Rotate == true {
 			line += " rotate"
 		}
 		fmt.Fprintln(w, line)
