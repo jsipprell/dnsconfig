@@ -11,6 +11,7 @@ package dnsconfig
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -94,20 +95,23 @@ func DnsReadConfig(filename string) (*DnsConfig, error) {
 
 func DnsWriteConfig(conf *DnsConfig, filename string) (err error) {
 	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+
 	if err != nil {
 		return
 	}
 	defer file.Close()
 
-	w := bufio.NewWriter(file)
+	err = writeConfigFile(conf, bufio.NewWriter(file))
+	return
+}
 
+func writeConfigFile(conf *DnsConfig, w io.Writer) (err error) {
 	for _, server := range conf.Servers {
 		line := "nameserver " + server
 		fmt.Fprintln(w, line)
 	}
-	for _, s := range conf.Search {
-		line := "search " + s
-		fmt.Fprintln(w, line)
+	if len(conf.Search) > 0 {
+		fmt.Fprintf(w, "search %s\n", strings.Join(conf.Search, " "))
 	}
 	if conf.Ndots != 0 || conf.Timeout != 0 || conf.Attempts != 0 || conf.Rotate != false {
 		line := "options"
@@ -125,7 +129,9 @@ func DnsWriteConfig(conf *DnsConfig, filename string) (err error) {
 		}
 		fmt.Fprintln(w, line)
 	}
-	w.Flush()
 
+	if f, ok := w.(flusher); ok {
+		f.Flush()
+	}
 	return
 }
